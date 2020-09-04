@@ -35,6 +35,8 @@ public class Main : MonoBehaviour
     public GameObject StartButton;
 
     public Image ToneMap;
+    public Image HandImage;
+    public Text LevelName;
 
     public List<GameObject> dontDestroyOnLoadGameObjects;
 
@@ -93,6 +95,8 @@ public class Main : MonoBehaviour
         RepeatButton.SetActive(false);
         NextButton.SetActive(false);
 
+        LevelName.text = "LEVEL 1";
+
         // находим игрока на сцене
         player = Instantiate(Resources.Load<GameObject>("Prefabs/Player")).GetComponent<Player>();
         player.main = this;
@@ -117,6 +121,7 @@ public class Main : MonoBehaviour
             hPanele.localScale = new Vector3(1, 1, 1);
             e.healthPanel = hPanele;
             e.healthPanelScript = hPanele.GetComponent<HealthPanel>();
+            e.healthPanel.gameObject.SetActive(false);
             e.StartScene();
         }
 
@@ -195,17 +200,23 @@ public class Main : MonoBehaviour
 
     IEnumerator EndOfBattle()
     {
-        yield return StartCoroutine(WaitLastFlyingRocket());
+        //yield return StartCoroutine(WaitLastFlyingRocket());
         yield return null;
         if (player != null && enemies.Count == 0)
         {
-            MessagePanel.text = "ТЫ ПОБЕДИЛ!\n за " + Timer.text + " сек";
+            foreach (Rocket r in FindObjectsOfType<Rocket>())
+            {
+                r.transform.SetParent(rocketsPool);
+                r.flying = false;
+            }
+
+            MessagePanel.text = "Good job!\nIt took you " + Timer.text + " seconds.";
             RepeatButton.SetActive(true);
             NextButton.SetActive(true);
         }
         else if (player == null)
         {
-            MessagePanel.text = "ТЫ ПРОИГРАЛ!";
+            MessagePanel.text = "Sorry, you lose.\nTry again!";
             RepeatButton.SetActive(true);
             NextButton.SetActive(false);
         }
@@ -309,7 +320,7 @@ public class Main : MonoBehaviour
         int nextSceneIndex = SceneManager.GetActiveScene().buildIndex + 1;
         if (SceneManager.sceneCountInBuildSettings == nextSceneIndex)
         {
-            MessagePanel.text = "Ты прошел все уровни!\nХочешь играть дальше?\nСоздай новые!";
+            MessagePanel.text = "You finished all levels!\nThanks for playing.\nPlease, provide feedback.";
             yield break;
         }
 
@@ -334,6 +345,8 @@ public class Main : MonoBehaviour
         // прогрузилась сцена
         yield return null;
         StartScene();
+
+        LevelName.text = "LEVEL " + (nextSceneIndex + 1).ToString();
     }
 
     public void StartCurrentLevel()

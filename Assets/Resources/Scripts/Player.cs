@@ -12,6 +12,7 @@ public class Player : MonoBehaviour
     public float rocketDamage; // текущий урон от оружия
     public float rocketSpeed; // скорость полета пули
     public float reloadingTime; // время перезарядки оружия (задержка между соседними атаками)
+    public float shootSpreadCoeff; // коэффициент разброса пуль
     bool reloading;
     public float rotateSpeed; // скорость поворота
     public float maxEnergy; // максимальный запас энергии
@@ -34,7 +35,8 @@ public class Player : MonoBehaviour
     Joystick joy;
     RaycastHit RChit;
 
-    Enemy myAim;
+    public Enemy myAim;
+    public Enemy curEnemyShooting;
 
     public Color bodyColor;
     [HideInInspector] public MaterialPropertyBlock MPB;
@@ -43,6 +45,12 @@ public class Player : MonoBehaviour
     NavMeshAgent agent;
 
     [HideInInspector] public bool inMatrix;
+
+    [Space]
+    public Color rocketColor;
+    public float rocketSize;
+
+
 
     public void StartScene()
     {
@@ -109,6 +117,8 @@ public class Player : MonoBehaviour
                         freeSlowMoTimer = freeSlowMoTime;
                         inMatrix = true;
                         main.ToneMap.enabled = true;
+
+                        curEnemyShooting = null;
                     }
                 }
                 else
@@ -154,17 +164,7 @@ public class Player : MonoBehaviour
             if (Quaternion.LookRotation(direction) != Quaternion.identity) transform.rotation = Quaternion.LookRotation(direction);
         }
 
-        // определяем близжайщего видимого (не закрытого препятствиями) врага
-        float nearestShootDist = shootRange;
-        foreach (Enemy e in main.enemies)
-        {
-            e.AimRing.SetActive(false);
-            if ((e.transform.position - transform.position).magnitude <= nearestShootDist && !Physics.SphereCast(transform.position + Vector3.up * 0.5f, 0.2f, e.transform.position - transform.position, out RChit, (e.transform.position - transform.position).magnitude, 1 << 9))
-            {
-                myAim = e;
-                nearestShootDist = (e.transform.position - transform.position).magnitude;
-            }
-        }
+        FindNearestAim();
 
         // если игрок стоит (скорость передвижения == 0), то он долбит по ближайшему врагу
         // и восстанавливает энергию
@@ -184,6 +184,8 @@ public class Player : MonoBehaviour
                 {
                     if (!reloading)
                     {
+                        curEnemyShooting = myAim;
+
                         // вытаскиваем из пула и настраиваем прожектайл 
                         Rocket rocket = main.rocketsPool.GetChild(0).GetComponent<Rocket>();
                         rocket.transform.parent = null;
@@ -194,7 +196,17 @@ public class Player : MonoBehaviour
                         rocket.flying = true;
                         rocket.speed = rocketSpeed;
                         rocket.damage = rocketDamage;
-                        rocket.direction = myAim.transform.position - transform.position;
+
+                        rocket.RocketParamsChanger(MPB, rocketColor, rocketSize);
+
+                        Vector3 randomVector = new Vector3(Random.Range(-shootSpreadCoeff, +shootSpreadCoeff), 0, Random.Range(-shootSpreadCoeff, +shootSpreadCoeff));
+                        Vector3 lastPoint = Vector3.zero;
+                        lastPoint = transform.position + (myAim.transform.position - transform.position).normalized * shootRange + randomVector;
+                        rocket.direction = lastPoint - transform.position;
+
+
+                        //rocket.direction = myAim.transform.position - transform.position;
+
                         // "пережаряжаемся" (задержка между выстрелами)
                         StartCoroutine(Reloading(reloadingTime));
                     }
@@ -204,6 +216,27 @@ public class Player : MonoBehaviour
                 {
                     transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(fwd, dir, rotateSpeed * Time.deltaTime, 0));
                 }
+            }
+        }
+    }
+
+    public void FindNearestAim()
+    {
+        if (curEnemyShooting != null)
+        {
+            myAim = curEnemyShooting;
+            return;
+        }
+
+        // определяем близжайщего видимого (не закрытого препятствиями) врага
+        float nearestShootDist = shootRange;
+        foreach (Enemy e in main.enemies)
+        {
+            e.AimRing.SetActive(false);
+            if ((e.transform.position - transform.position).magnitude <= nearestShootDist && !Physics.SphereCast(transform.position + Vector3.up * 0.5f, 0.2f, e.transform.position - transform.position, out RChit, (e.transform.position - transform.position).magnitude, 1 << 9))
+            {
+                myAim = e;
+                nearestShootDist = (e.transform.position - transform.position).magnitude;
             }
         }
     }
@@ -221,5 +254,26 @@ public class Player : MonoBehaviour
     {
         // тянем камеру за игроком (только по вертикали)
         CamTarget.position = new Vector3(CamTarget.position.x, CamTarget.position.y, transform.position.z);
+    }
+
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.tag == "Enemy")
+        {            
+            Enemy e = other.GetComponent<Enemy>();
+            if (e.collDamage != 0)
+            {
+                main.BodyHitReaction(mr, MPB, bodyColor);
+
+                curHealthPoint -= e.collDamage;
+                healthPanelScript.HitFunction(curHealthPoint / maxHealthPoint, e.collDamage);
+
+                if (curHealthPoint <= 0)
+                {
+                    main.PlayerDie(this);
+                }
+            }
+        }
     }
 }

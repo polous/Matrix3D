@@ -18,6 +18,19 @@ public class Rocket : MonoBehaviour
     public Rigidbody rb;
     public Main main;
 
+    public MeshRenderer mr;
+
+
+    public void RocketParamsChanger(MaterialPropertyBlock MPB, Color bodyColor, float bodySize)
+    {
+        mr.GetPropertyBlock(MPB);
+        MPB.SetColor("_Color", bodyColor);
+        mr.SetPropertyBlock(MPB);
+
+        mr.transform.localScale = Vector3.one * bodySize;
+    }
+
+
     void Update()
     {
         if (flying)
@@ -54,10 +67,12 @@ public class Rocket : MonoBehaviour
                     main.BodyHitReaction(e.mr, e.MPB, e.bodyColor);
 
                     e.curHealthPoint -= damage;
+                    e.healthPanel.gameObject.SetActive(true);
                     e.healthPanelScript.HitFunction(e.curHealthPoint / e.maxHealthPoint, damage);
 
                     if (e.curHealthPoint <= 0)
                     {
+                        if (main.player != null) main.player.curEnemyShooting = null; //main.player.FindNearestAim();
                         main.EnemyDie(e);
                     }
                 }

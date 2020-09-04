@@ -26,9 +26,11 @@ public class Enemy : MonoBehaviour
     public float rocketSpeed; // скорость полета пули
     public float reloadingTime; // время перезарядки оружия (задержка между соседними атаками в секундах)
 
+    [Space]
     public float maxHealthPoint; // максимальный запас здоровья
     [HideInInspector] public float curHealthPoint; // текущий запас здоровья
 
+    [Space]
     public float voidZoneCastRange; // максимальная дистанция кастования войд зоны
     public float voidZoneDamage; // урон от войд зоны
     public float voidZoneRadius; // радиус войд зоны
@@ -66,11 +68,16 @@ public class Enemy : MonoBehaviour
     [HideInInspector] public MaterialPropertyBlock MPB;
     [HideInInspector] public MeshRenderer mr;
 
+    [Space]
+    public Color rocketColor;
+    public float rocketSize;
 
-    void Start()
-    {
+    [HideInInspector] public LineRenderer lr;
+    [HideInInspector] public Transform Throwpoint;
 
-    }
+    [Space]
+    public float collDamage;
+
 
     public void StartScene()
     {
@@ -79,6 +86,8 @@ public class Enemy : MonoBehaviour
         mr.GetPropertyBlock(MPB);
         MPB.SetColor("_Color", bodyColor);
         mr.SetPropertyBlock(MPB);
+        Throwpoint = transform.Find("Throwpoint");
+        lr = Throwpoint.GetComponent<LineRenderer>();
 
         curHealthPoint = maxHealthPoint;
 
@@ -95,10 +104,63 @@ public class Enemy : MonoBehaviour
         rotateDir = 1;
     }
 
+
+    float ThrowVelocityCalc(float g, float ang, float x, float y)
+    {
+        float angRad = ang * Mathf.PI / 180f;
+        float v2 = (g * x * x) / (2 * (y - Mathf.Tan(angRad) * x) * Mathf.Pow(Mathf.Cos(angRad), 2));
+        float v = Mathf.Sqrt(Mathf.Abs(v2));
+        return v;
+    }
+
+
+    public void ShowTrajectory(Vector3 origin, Vector3 speed)
+    {
+        lr.enabled = true;
+
+        Vector3[] points = new Vector3[100];
+        lr.positionCount = points.Length;
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            float time = i * 0.1f;
+
+            points[i] = origin + speed * time + Physics.gravity * time * time / 2f;
+
+            if (points[i].y < 0.1f)
+            {
+                lr.positionCount = i + 1;
+                break;
+            }
+        }
+
+        lr.SetPositions(points);
+    }
+
+    void ShowVoidZoneTraectory(Vector3 VZPos, float Ang)
+    {
+        float velocity;
+        float ThrowDistX, ThrowDistY;
+
+        Vector3 FromTo = VZPos - Throwpoint.position;
+        Vector3 FromToXZ = new Vector3(FromTo.x, 0f, FromTo.z);
+
+        ThrowDistX = FromToXZ.magnitude;
+        ThrowDistY = FromTo.y;
+
+        Throwpoint.rotation = Quaternion.LookRotation(FromToXZ);
+
+        Throwpoint.localEulerAngles = new Vector3(-Ang, Throwpoint.localEulerAngles.y, Throwpoint.localEulerAngles.z);
+        velocity = ThrowVelocityCalc(Physics.gravity.y, Ang, ThrowDistX, ThrowDistY);
+
+        ShowTrajectory(Throwpoint.position, velocity * Throwpoint.forward);
+    }
+
+
     // Получение случайной точки на Navmesh
     void GetRandomPoint(Vector3 center, float maxDistance)
     {
-        for (int c = 0; c < 50; c++)
+        for (int c = 0; c < 100; c++)
         {
             // случайная точка внутри окружности, расположенной в center с радиусом maxDistance
             Vector3 randomPos = new Vector3(Random.Range(center.x - maxDistance, center.x + maxDistance), 0, Random.Range(center.z - maxDistance, center.z + maxDistance));
@@ -328,6 +390,8 @@ public class Enemy : MonoBehaviour
             rocket.speed = rocketSpeed;
             rocket.damage = rocketDamage;
 
+            rocket.RocketParamsChanger(MPB, rocketColor, rocketSize);
+
             Vector3 randomVector = new Vector3(Random.Range(-shootSpreadCoeff, +shootSpreadCoeff), 0, Random.Range(-shootSpreadCoeff, +shootSpreadCoeff));
             Vector3 lastPoint = Vector3.zero;
             if(type == 1) lastPoint = transform.position + (main.player.transform.position - transform.position).normalized * shootRange + randomVector;
@@ -347,7 +411,7 @@ public class Enemy : MonoBehaviour
         {
             VoidZone voidZone = main.voidZonesPool.GetChild(0).GetComponent<VoidZone>();
             voidZone.transform.parent = null;
-            if ((main.player.transform.position - transform.position).magnitude <= shootRange)
+            if ((main.player.transform.position - transform.position).magnitude <= voidZoneCastRange)
             {
                 voidZone.transform.position = main.player.transform.position;
             }
@@ -356,12 +420,17 @@ public class Enemy : MonoBehaviour
                 GetRandomPoint(transform.position, voidZoneCastRange);
                 if (path.corners.Length > 1) voidZone.transform.position = path.corners.Last();
             }
+
+            if(voidZoneCastRange != 0) ShowVoidZoneTraectory(voidZone.transform.position, 50f);
+
             voidZone.damage = voidZoneDamage;
             voidZone.radius = voidZoneRadius;
             voidZone.transform.localScale = Vector3.one * voidZoneRadius;
             voidZone.duration = voidZoneDuration;
             voidZone.isCasting = true;
             voidZone.Custer = this;
+
+            voidZone.VZShowRadius();
 
             Transform vzce = main.voidZoneCastEffectsPool.GetChild(0);
             vzce.transform.parent = null;
