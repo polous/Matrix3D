@@ -61,6 +61,12 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
     public virtual void OnPointerDown(PointerEventData eventData)
     {
         OnDrag(eventData);
+
+        // по тапу начнем игру
+        if (!main.readyToGo)
+        {
+            main.readyToGo = true;
+        }
     }
 
     public void OnDrag(PointerEventData eventData)

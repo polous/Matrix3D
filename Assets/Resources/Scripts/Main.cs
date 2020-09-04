@@ -89,7 +89,7 @@ public class Main : MonoBehaviour
         globalTimer = 0;
         readyToGo = false;
         joy.main = this;
-        StartButton.SetActive(true);
+        //StartButton.SetActive(true);
         RepeatButton.SetActive(false);
         NextButton.SetActive(false);
 
